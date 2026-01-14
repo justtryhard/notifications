@@ -1,13 +1,3 @@
 ﻿# notifications
-d sdf s
 
-sfsg
-
- sdgasdg
-...
-
-...
-
-testing conflicts
-wet
-
+repository for notification project
