@@ -1,63 +1,47 @@
 import psycopg2
+from pydantic import BaseModel
 from datetime import datetime
+from fastapi import FastAPI
 
 
-class Notification:
-    def __init__(self, id: int, user_id: str, message: str, send_at: str):
-        self.dct = {'id': id, 'user_id': user_id, 'message': message,
-                    'send_at': datetime.strptime(send_at, "%Y-%m-%dT%H:%M:%S")}
-# оставил словарь, т.к. было такое задание в прошлой задаче. Здесь, при работе с SQL, мне он уже кажется лишним. Ключ Priority убрал, т.к. его нет в таблице
-
-    def __repr__(self):
-        return f'{self.dct.get('user_id')}: {self.dct.get('message')}'
-
-    def send_at(self):
-        return self.dct['send_at']
+class NotificationReceive(BaseModel):
+    user_id: str
+    message: str
+    send_at: datetime
 
 
 class Scheduler:
     def __init__(self):
         self.conn = psycopg2.connect(
             dbname="notifications",
-            user="admin",
-            password="verystrongpassword",
-            host="localhost"
+            user="postgres",
+            password="verystrong",
+            host="localhost",
+            sslmode="disable"
         )
         self.cursor = self.conn.cursor()
 
-    def schedule(self, notification):
+    def schedule(self, user_id: str, message: str, send_at):
         self.cursor.execute(
             """
             INSERT INTO scheduled_notifications (user_id, message, send_at, status)
             VALUES (%s, %s, %s, 'pending')
             """,
-            (notification.dct['user_id'], notification.dct['message'], notification.dct['send_at'])
+            (user_id, message, send_at)
         )
         self.conn.commit()
 
-    def run_pending(self):
-        with self.conn, self.conn.cursor() as c:
-            c.execute(
-                """
-                SELECT id, user_id, message, send_at
-                FROM scheduled_notifications
-                WHERE status = 'pending' AND send_at <= %s       
-                """,
-                (datetime.now(),)
-            )
-            pending = c.fetchall()
-            for elem in pending:
-                notification = Notification(*elem)
-                send_notification(notification)
-                c.execute(
-                    """
-                    UPDATE scheduled_notifications
-                    SET status = 'sent'
-                    WHERE id = %s
-                    """,
-                    (elem[0],)
-                )
+
+app = FastAPI()
+scheduler = Scheduler()
 
 
-def send_notification(notification: Notification):
-    print(f"Sending: {notification}")
+@app.post("/notifications")
+def create_notification(notification: NotificationReceive):
+    scheduler.schedule(
+        user_id=notification.user_id,
+        message=notification.message,
+        send_at=notification.send_at
+    )
+
+    return {"status": "ok"}
