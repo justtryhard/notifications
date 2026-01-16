@@ -85,3 +85,21 @@ def remove_notification(notification_id: int):
     return {"id": notification_id, "status": "deleted"}
 
 
+@app.patch("/notifications/{notification_id}")
+def update_notification(notification_id: int, msg: str):
+    scheduler.cursor.execute(
+        """
+        UPDATE scheduled_notifications
+        SET message = %s
+        WHERE id = %s
+        RETURNING id
+        """,
+        (msg, notification_id)
+    )
+    line = scheduler.cursor.fetchone()
+    scheduler.conn.commit()
+
+    if not line:
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    return {"id": notification_id, "message": msg}
